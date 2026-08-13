@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main ]
 
+# ============ FIX: ADD PERMISSIONS ============
+permissions:
+  contents: read
+  pull-requests: write
+# ============ FIX END ============
+
 jobs:
   # ============ JOB 1: TEST ============
   test:
