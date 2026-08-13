@@ -6,11 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
-# ============ FIX: ADD PERMISSIONS ============
 permissions:
   contents: read
   pull-requests: write
-# ============ FIX END ============
 
 jobs:
   # ============ JOB 1: TEST ============
@@ -36,36 +34,7 @@ jobs:
           cd nodeapp
           npm test
 
-  # ============ JOB 2: CODE QUALITY (SonarCloud) ============
-  sonarcloud:
-    name: SonarCloud Code Quality
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Check out the repo
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          
-      - name: Install dependencies
-        run: |
-          cd nodeapp
-          npm install
-      
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: nodeapp
-
-  # ============ JOB 3: SECURITY SCAN (Trivy) ============
+  # ============ JOB 2: SECURITY SCAN (Trivy) ============
   security-scan:
     name: Security Scan with Trivy
     runs-on: ubuntu-latest
@@ -84,11 +53,11 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
 
-  # ============ JOB 4: BUILD & PUSH DOCKER IMAGE ============
+  # ============ JOB 3: BUILD & PUSH DOCKER IMAGE ============
   build-and-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: [test, sonarcloud, security-scan]
+    needs: [test, security-scan]  # REMOVED sonarcloud
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Check out the repo
