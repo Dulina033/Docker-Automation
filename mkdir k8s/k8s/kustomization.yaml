@@ -4,4 +4,4 @@ resources:
   - deployment.yaml
 images:
   - name: dulina/docker-automation
-    newTag: latest
+    newTag: 9969685   # ← USE SPECIFIC SHA

@@ -15,18 +15,37 @@ spec:
       labels:
         app: docker-automation
     spec:
+      # ============ FIX: Service Account ============
+      automountServiceAccountToken: false
+      # ============ FIX END ============
       containers:
       - name: docker-automation
-        image: dulina/docker-automation:latest
+        image: dulina/docker-automation:9969685
         ports:
         - containerPort: 3000
+        # ============ FIX: Add storage request ============
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        # ============ FIX END ============
         resources:
           requests:
             memory: "128Mi"
             cpu: "100m"
+            # ============ FIX: Add storage request ============
+            ephemeral-storage: "1Gi"
+            # ============ FIX END ============
           limits:
             memory: "256Mi"
             cpu: "200m"
+            # ============ FIX: Add storage limit ============
+            ephemeral-storage: "2Gi"
+            # ============ FIX END ============
+      # ============ FIX: Volume for storage ============
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      # ============ FIX END ============
 ---
 apiVersion: v1
 kind: Service

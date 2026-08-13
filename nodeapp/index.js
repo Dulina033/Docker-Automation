@@ -1,8 +1,12 @@
-var express = require("express");
-var app = express();
+const express = require("express");
+const app = express();
+
+// ============ FIX: Disable version disclosure ============
+app.disable('x-powered-by');
+// ============ FIX END ============
 
 app.get("/", function (req, res) {
-  res.send('{ "response": "Hello, Welcome to Kalharcodes!!!"}');
+  res.send('{"response": "Hello, Welcome to Kalharcodes!!!"}');
 });
 
 //listen to port 3000 by default

@@ -33,24 +33,6 @@ jobs:
           cd nodeapp
           npm test
 
-  security-scan:
-    name: Security Scan with Trivy
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Check out the repo
-        uses: actions/checkout@v3
-      
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'table'
-          exit-code: '0'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-
   sonarcloud:
     name: SonarCloud Code Quality
     runs-on: ubuntu-latest
@@ -79,10 +61,28 @@ jobs:
         with:
           projectBaseDir: nodeapp
 
+  security-scan:
+    name: Security Scan with Trivy
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v3
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
   build-and-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: [test, security-scan, sonarcloud]
+    needs: [test, sonarcloud, security-scan]
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Check out the repo
