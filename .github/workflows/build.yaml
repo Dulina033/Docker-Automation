@@ -2,107 +2,145 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
+    paths-ignore:
+      - "k8s/**"
+
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
+
+  # =========================
+  # 1. RUN TESTS
+  # =========================
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          
-      - name: Install dependencies
-        run: |
-          cd nodeapp
-          npm install
-      
-      - name: Run tests
-        run: |
-          cd nodeapp
-          npm test
+        uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: nodeapp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: nodeapp
+        run: npm ci
+
+      - name: Run tests
+        working-directory: nodeapp
+        run: npm test
+
+
+  # =========================
+  # 2. SONARCLOUD
+  # =========================
   sonarcloud:
     name: SonarCloud Code Quality
     runs-on: ubuntu-latest
     needs: test
+
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          
-      - name: Install dependencies
-        run: |
-          cd nodeapp
-          npm install
-      
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: nodeapp
 
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+
+
+  # =========================
+  # 3. TRIVY SECURITY SCAN
+  # =========================
   security-scan:
     name: Security Scan with Trivy
     runs-on: ubuntu-latest
     needs: test
+
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v3
-      
+        uses: actions/checkout@v4
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'table'
-          exit-code: '0'
+          scan-type: "fs"
+          scan-ref: "."
+          format: "table"
+          exit-code: "0"
           ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
+          severity: "CRITICAL,HIGH"
 
+
+  # =========================
+  # 4. BUILD + PUSH DOCKER
+  # =========================
   build-and-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: [test, sonarcloud, security-scan]
+
+    needs:
+      - test
+      - sonarcloud
+      - security-scan
+
     if: github.ref == 'refs/heads/main'
+
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v3
-      
+        uses: actions/checkout@v4
+
       - name: Login to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-    
+
       - name: Set short SHA
-        id: vars
-        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
-    
+        run: |
+          echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: ./
           push: true
           tags: |
             dulina/docker-automation:${{ env.SHORT_SHA }}
             dulina/docker-automation:latest
+
+
+      # =========================
+      # 5. UPDATE KUSTOMIZE
+      # =========================
+      - name: Update Kubernetes image tag
+        run: |
+          sed -i "s/newTag: .*/newTag: ${{ env.SHORT_SHA }}/" k8s/kustomization.yaml
+
+      # =========================
+      # 6. COMMIT KUSTOMIZE CHANGE
+      # =========================
+      - name: Commit and push Kubernetes manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add k8s/kustomization.yaml
+
+          git commit -m "Update image tag to ${{ env.SHORT_SHA }}" || echo "No changes to commit"
+
+          git push

@@ -20,7 +20,7 @@ spec:
       # ============ FIX END ============
       containers:
       - name: docker-automation
-        image: dulina/docker-automation:9969685
+        image:dulina/docker-automation
         ports:
         - containerPort: 3000
         # ============ FIX: Add storage request ============
